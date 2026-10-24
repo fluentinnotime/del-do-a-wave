@@ -161,8 +161,8 @@ svg.staff .clef,svg.staff .acc{fill:currentColor;font-family:var(--music)}
 .kb-nav{display:inline-flex;gap:6px}
 .kb-nav button{width:36px;height:32px;border-radius:9px;border:1px solid var(--rule);background:var(--sheet);cursor:pointer;font-weight:700}
 .kb-case{background:var(--kb-case);border-radius:12px;padding:12px 8px 9px}
-.kb-scroll{overflow-x:auto;container-type:inline-size;border-top:3px solid var(--felt);scrollbar-width:thin}
-.kb{--kw:clamp(30px,calc(100cqw / var(--n)),58px);--bw:calc(var(--kw) * .6);position:relative;display:flex;width:calc(var(--n) * var(--kw));height:clamp(132px,calc(var(--kw) * 4.1),200px);margin:0 auto}
+.kb-scroll{overflow:hidden;container-type:inline-size;border-top:3px solid var(--felt)}
+.kb{--kw:min(calc(100cqw / var(--n)),58px);--bw:calc(var(--kw) * .6);position:relative;display:flex;width:calc(var(--n) * var(--kw));height:clamp(96px,calc(var(--kw) * 4.4),200px);margin:0 auto}
 .key{position:relative;padding:0;border:0;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 .key.white{flex:none;width:var(--kw);height:100%;background:var(--kw-white);border-right:1px solid var(--kw-edge);border-radius:0 0 5px 5px;box-shadow:inset 0 -7px 0 rgba(0,0,0,.07)}
 .key.black{position:absolute;top:0;width:var(--bw);height:60%;background:linear-gradient(var(--kb-black-hi),var(--kb-black) 30%);border-radius:0 0 4px 4px;z-index:2;box-shadow:0 2px 3px rgba(0,0,0,.4)}
@@ -170,10 +170,10 @@ svg.staff .clef,svg.staff .acc{fill:currentColor;font-family:var(--music)}
 .key.black.down{background:var(--kb-black-down)}
 .key.white.ok,.key.black.ok{background:var(--ok)}
 .key.white.bad,.key.black.bad{background:var(--bad)}
-.key.c4::after{content:"";position:absolute;top:9px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--classic)}
-.lab{position:absolute;bottom:9px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:var(--kw-label);pointer-events:none;line-height:1}
-.badge{position:absolute;left:50%;transform:translateX(-50%);bottom:28px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--accent);color:var(--on-accent);font:600 12px/22px var(--mono);pointer-events:none;white-space:nowrap}
-.key.black .badge{bottom:8px;min-width:18px;height:18px;font-size:10.5px;line-height:18px;padding:0 3px}
+.key.c4::after{content:"";position:absolute;top:clamp(4px,calc(var(--kw) * .3),9px);left:50%;width:clamp(4px,calc(var(--kw) * .2),6px);aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:var(--classic)}
+.lab{position:absolute;bottom:clamp(3px,calc(var(--kw) * .25),9px);left:0;right:0;text-align:center;font-size:clamp(6.5px,calc(var(--kw) * .38),11px);letter-spacing:-.02em;overflow:hidden;font-weight:700;color:var(--kw-label);pointer-events:none;line-height:1}
+.badge{--bs:clamp(11px,calc(var(--kw) * .8),22px);position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bs) * 1.2);min-width:var(--bs);height:var(--bs);padding:0 2px;border-radius:calc(var(--bs) / 2);background:var(--accent);color:var(--on-accent);font:600 calc(var(--bs) * .55)/var(--bs) var(--mono);pointer-events:none;white-space:nowrap}
+.key.black .badge{--bs:clamp(9px,calc(var(--bw) * .95),18px);bottom:calc(var(--bs) * .4);padding:0 1px}
 .badge.guide{background:var(--guide)}
 .badge.bass{background:var(--muted)}
 .badge.soft{opacity:.42}
@@ -399,8 +399,7 @@ function Keyboard(host,o={}){
   const from=o.from??48,to=o.to??72;let mode=o.labels||pref.labels;
   const box=document.createElement("div");box.className="kbx";
   box.innerHTML=`<div class="kb-bar"><div class="seg" role="group" aria-label="Nombres en las teclas">
-    <button type="button" data-l="sol">Do Re Mi</button><button type="button" data-l="let">C D E</button><button type="button" data-l="none">Sin nombres</button></div>
-    <div class="kb-nav"><button type="button" data-d="-1" aria-label="Desplazar a la izquierda">‹</button><button type="button" data-d="1" aria-label="Desplazar a la derecha">›</button></div></div>
+    <button type="button" data-l="sol">Do Re Mi</button><button type="button" data-l="let">C D E</button><button type="button" data-l="none">Sin nombres</button></div></div>
     <div class="kb-case"><div class="kb-scroll"><div class="kb"></div></div></div>`;
   host.appendChild(box);
   const kb=box.querySelector(".kb"),sc=box.querySelector(".kb-scroll"),keys={};
@@ -420,7 +419,6 @@ function Keyboard(host,o={}){
       lab.textContent=mode==="sol"?SOL[pc(+m)]:mode==="let"?LET[pc(+m)]:"";}
   }
   box.querySelector(".seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;mode=b.dataset.l;if(!o.labels){pref.labels=mode;store.set("pref",pref);}labels();});
-  box.querySelector(".kb-nav").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;sc.scrollBy({left:+b.dataset.d*sc.clientWidth*.6,behavior:"smooth"});});
   function down(m){const k=keys[m];if(!k)return;k.classList.add("down");setTimeout(()=>k.classList.remove("down"),180);}
   function hit(m){if(!o.silent)playNote(m);down(m);bus.input(m,api);}
   kb.addEventListener("pointerdown",e=>{const k=e.target.closest(".key");if(!k)return;e.preventDefault();hit(+k.dataset.m);});
