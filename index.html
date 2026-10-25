@@ -965,6 +965,7 @@ function renderWave(){
   const tr=Transport();onCleanup(()=>tr.stop());
   app.innerHTML=`<div class="t-j"><span class="eyebrow">Antonio Carlos Jobim · arreglo de Claus Ogerman</span><h2 class="vh">Wave</h2>
     <p class="lead muted">Los acordes de tu partitura, compás a compás y con su misma numeración. La melodía la lees de tu papel; aquí practicas la armonía y escuchas cómo suena el acompañamiento. <a href="https://www.jobim.org/jobim/bitstream/handle/2010/4994/wave.pdf?sequence=2" target="_blank" rel="noopener">Abrir la partitura en jobim.org</a></p>
+    <div class="row" style="margin:4px 0 14px"><a class="btn" href="hancock.html" style="text-decoration:none;color:inherit;display:inline-block">Seguir la versión de Herbie Hancock (1993) tecla a tecla</a></div>
     <div class="secs row" role="group" aria-label="Secciones">${WSECS.map(x=>`<button type="button" data-s="${x.id}">${x.n} <span class="muted" style="font-weight:500">${x.a}–${x.b}</span></button>`).join("")}<button type="button" data-s="all">Todo</button></div>
     <div class="wgrid"></div><div class="wsel muted" aria-live="polite"></div>
     <section class="ex"><div class="row">
