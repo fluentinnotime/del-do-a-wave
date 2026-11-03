@@ -1,0 +1,46 @@
+plugins { id 'com.android.application' }
+
+// La app lleva dentro las mismas páginas que la web (index.html y wave.html de la raíz del repositorio)
+def wwwOut = layout.buildDirectory.dir("generated/www")
+tasks.register('copyWww', Copy) {
+    from(rootProject.file('../index.html'))
+    from(rootProject.file('../wave.html'))
+    into(wwwOut.map { it.dir('www') })
+}
+tasks.named('preBuild').configure { dependsOn 'copyWww' }
+
+android {
+    namespace 'com.fluentinnotime.deldoawave'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.fluentinnotime.deldoawave'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    sourceSets { main { assets.srcDirs += [wwwOut.get().asFile] } }
+    signingConfigs {
+        release {
+            def ks = System.getenv('DDW_KEYSTORE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('DDW_KEYSTORE_PASSWORD')
+                keyAlias 'deldoawave'
+                keyPassword System.getenv('DDW_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('DDW_KEYSTORE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies { implementation 'androidx.webkit:webkit:1.11.0' }

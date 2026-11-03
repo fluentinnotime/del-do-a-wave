@@ -104,6 +104,7 @@ input[type=number]{width:5.5em}
 .bar.here{border-color:var(--sea);box-shadow:inset 0 0 0 1px var(--sea)}
 .kbd-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 10px 6px}
 .kbd{position:relative;height:150px;margin:0 auto}
+.fall{display:block;margin:0 auto;border-bottom:3px solid var(--bad);background:var(--bg);border-radius:8px 8px 0 0}
 .k{position:absolute;top:0;border:1px solid color-mix(in srgb,var(--black-key) 35%,transparent);border-radius:0 0 5px 5px;display:flex;align-items:flex-end;justify-content:center;font-family:var(--f-mono);font-size:10px;padding-bottom:4px;cursor:pointer;user-select:none;-webkit-user-select:none}
 .k.w{height:150px;background:var(--white-key);color:#36494d;z-index:1}
 .k.b{height:94px;background:var(--black-key);color:#e9efee;z-index:2;border-color:var(--black-key)}
@@ -127,7 +128,7 @@ details p{margin:8px 0 0}
 <div class="wrap">
   <header>
     <div>
-      <a class="back" href="./">← Volver a Del Do a Wave</a>
+      <a class="back" href="index.html">← Volver a Del Do a Wave</a>
       <h1><small>Antonio Carlos Jobim · los 58 compases</small>Wave, paso a paso</h1>
     </div>
     <div class="status">
@@ -159,6 +160,13 @@ details p{margin:8px 0 0}
       <div class="seg" id="modeSeg">
         <button type="button" data-v="wait" aria-pressed="true">Esperar mis teclas</button>
         <button type="button" data-v="listen" aria-pressed="false">Escuchar</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span>Vista</span>
+      <div class="seg" id="viewSeg">
+        <button type="button" data-v="keys" aria-pressed="true">Teclado</button>
+        <button type="button" data-v="fall" aria-pressed="false">Cascada de notas</button>
       </div>
     </div>
     <div class="ctl">
@@ -236,13 +244,14 @@ details p{margin:8px 0 0}
   <section class="strip" aria-label="Compases"><div class="bars" id="bars"></div></section>
 
   <section>
-    <div class="kbd-wrap"><div class="kbd" id="kbd"></div></div>
+    <div class="kbd-wrap"><canvas class="fall" id="fall" hidden></canvas><div class="kbd" id="kbd"></div></div>
     <div class="kbd-legend">
       <span><i class="sw" style="background:var(--lh)"></i>Mano izquierda: ahora</span>
       <span><i class="sw" style="background:var(--rh)"></i>Mano derecha: ahora</span>
       <span><i class="sw" style="background:var(--ok)"></i>Tecla acertada</span>
       <span><i class="sw" style="background:var(--bad)"></i>Tecla que no tocaba</span>
       <span>Raya de color abajo: el paso que viene después</span>
+      <span id="fallLegend" hidden>Cascada: cada nota cae hasta la línea roja; cuanto más larga, más tiempo se mantiene</span>
       <span>Do central = C4</span>
     </div>
   </section>
@@ -444,8 +453,8 @@ function parseMidi(buf){
 /* ---------------- Estado ---------------- */
 const st={who:store.get("who","L"),lh:store.get("lh","h:shell"),rh:store.get("rh","h:chords"),mode:"wait",bpm:store.get("bpm",50),
   auto:store.get("auto",true),loop:true,a:store.get("a",6),b:store.get("b",9),shift:store.get("shift",1),
-  idx:0,hit:new Set(),fired:false,done:0,wrong:0,laps:0,playing:false,timer:null,pending:[],out:null};
-let STEPS=[];
+  view:store.get("view","keys"),idx:0,hit:new Set(),fired:false,done:0,wrong:0,laps:0,playing:false,timer:null,pending:[],out:null};
+let STEPS=[], FALL=[];
 
 function srcOptions(hand){
   const o= hand==="R" ? [["h:chords","Acordes de la armonía (4 notas)"]] : [["h:shell","Shells: fundamental + 3ª + 7ª"],["h:bass","Solo el bajo (una nota)"]];
@@ -481,6 +490,7 @@ function rebuild(){
   getSource(st.rh).forEach(n=>put("R",n)); getSource(st.lh).forEach(n=>put("L",n));
   STEPS=[...map.values()].sort((a,b)=>a.t-b.t);
   STEPS.forEach(s=>{s.R.sort((a,b)=>a.m-b.m); s.L.sort((a,b)=>a.m-b.m); s.bar=Math.floor(s.t/4+1e-6)+1; s.q=s.t-(s.bar-1)*4+1; s.h=chordAt(s.t);});
+  FALL=[]; STEPS.forEach(s=>{for(const h of ["L","R"]) for(const n of s[h]) FALL.push({t:s.t,d:n.d,m:n.m,h,lab:names(n.m,n.s,n.a).es});});
 }
 const totalBars=()=>Math.max(58,FILE?FILE.bars+st.shift-1:0);
 const req=s=>(st.who==="L"?s.L:st.who==="R"?s.R:[...s.L,...s.R]).map(n=>n.m);
@@ -575,6 +585,7 @@ function render(){
   const cur=document.querySelector(`.bar[data-b="${s.bar}"]`); const strip=document.querySelector(".strip");
   if(cur&&strip.scrollWidth>strip.clientWidth){const x=cur.offsetLeft-strip.offsetLeft; if(x<strip.scrollLeft||x>strip.scrollLeft+strip.clientWidth-160) strip.scrollTo({left:x-40,behavior:"smooth"});}
   $("sDone").textContent=st.done; $("sWrong").textContent=st.wrong; $("sLaps").textContent=st.laps;
+  kickFall();
 }
 function buildStrip(){
   const bars=$("bars"); bars.innerHTML=""; const nb=totalBars();
@@ -657,7 +668,7 @@ function play(){
   stop(); audio(); const r=rangeIdx(); if(!r.length) return;
   st.playing=true; $("btnPlay").textContent="■ Parar"; let k=Math.max(0,r.indexOf(st.idx));
   const tick=()=>{
-    if(!st.playing) return; const i=r[k],s=STEPS[i]; st.idx=i; st.hit.clear(); render();
+    if(!st.playing) return; const i=r[k],s=STEPS[i]; st.idx=i; st.hit.clear(); fall.anchor={t:s.t,ms:performance.now()}; if(k===0) fall.vt=s.t; render();
     sound([...s.L,...s.R]); const spb=60/st.bpm; let gap;
     if(k+1<r.length){gap=STEPS[r[k+1]].t-s.t; k++;}
     else{ if(!st.loop){st.timer=setTimeout(stop,Math.max(...[...s.L,...s.R].map(n=>n.d),1)*spb*1000); return;}
@@ -666,7 +677,7 @@ function play(){
   };
   tick();
 }
-function stop(){st.playing=false; clearTimeout(st.timer); $("btnPlay").textContent="▶ Escuchar desde aquí";}
+function stop(){st.playing=false; fall.anchor=null; clearTimeout(st.timer); $("btnPlay").textContent="▶ Escuchar desde aquí"; kickFall();}
 
 /* ---------------- MIDI del piano ---------------- */
 let midi=null;
@@ -713,6 +724,58 @@ async function loadFile(f){
   }catch(err){feedback("No he podido leer ese archivo: "+err.message+".","bad");}
 }
 
+/* ---------------- Cascada de notas ---------------- */
+const fall={vt:0,anchor:null,raf:0,win:8};
+const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function fallTarget(){
+  if(st.playing&&fall.anchor) return fall.anchor.t+(performance.now()-fall.anchor.ms)/1000*st.bpm/60;
+  const s=STEPS[st.idx]; return s?s.t:0;
+}
+function sizeFall(){
+  const c=$("fall"),kb=$("kbd"); const w=parseFloat(kb.style.width)||kb.clientWidth;
+  const h=Math.round(Math.min(420,Math.max(220,window.innerHeight*.42)));
+  const dpr=window.devicePixelRatio||1; c.width=Math.round(w*dpr); c.height=Math.round(h*dpr); c.style.width=w+"px"; c.style.height=h+"px";
+}
+function drawFall(){
+  fall.raf=0; if(st.view!=="fall") return;
+  const c=$("fall"),ctx=c.getContext("2d"),dpr=window.devicePixelRatio||1,W=c.width/dpr,H=c.height/dpr;
+  const target=fallTarget();
+  fall.vt=(reduceMotion||st.playing)?target:fall.vt+(target-fall.vt)*0.18;
+  if(Math.abs(target-fall.vt)<0.002) fall.vt=target;
+  const css=getComputedStyle(document.documentElement), tok=n=>css.getPropertyValue(n).trim();
+  const ppq=H/fall.win, vt=fall.vt, wait=st.mode==="wait";
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  // líneas de compás
+  ctx.font="600 11px "+tok("--f-body"); ctx.textBaseline="bottom"; ctx.textAlign="left";
+  for(let b=Math.floor(vt/4);b<=Math.ceil((vt+fall.win)/4);b++){
+    const y=H-(b*4-vt)*ppq; if(y<0||y>H) continue;
+    ctx.fillStyle=tok("--line"); ctx.fillRect(0,y,W,1);
+    ctx.fillStyle=tok("--muted"); const ch=(BARS[b]||[]).join(" – "); ctx.fillText(`Compás ${b+1}${ch?" · "+ch:""}`,6,y-3);
+  }
+  // notas
+  ctx.textBaseline="middle"; ctx.textAlign="center"; ctx.font="700 11px "+tok("--f-mono");
+  for(const n of FALL){
+    if(n.t+n.d<vt-0.01||n.t>vt+fall.win) continue;
+    const el=keyEls[n.m]; if(!el) continue;
+    const x=parseFloat(el.style.left), w=parseFloat(el.style.width);
+    const y1=H-(n.t-vt)*ppq, y0=Math.max(-4,H-(n.t+n.d-vt)*ppq);
+    const mine=!wait||st.who==="both"||st.who===n.h;
+    ctx.globalAlpha=mine?1:.35;
+    ctx.fillStyle=tok(n.h==="L"?"--lh":"--rh");
+    const r=Math.min(6,w/3), hh=Math.max(6,Math.min(H,y1)-y0-2);
+    ctx.beginPath(); ctx.roundRect(x+1,y0+1,w-2,hh,r); ctx.fill();
+    if(hh>16&&w>=14){ctx.fillStyle=tok("--on-key"); ctx.fillText(n.lab.length>3&&w<22?n.lab.slice(0,3):n.lab,x+w/2,Math.min(H,y1)-10);}
+  }
+  ctx.globalAlpha=1;
+  if(st.playing||Math.abs(target-fall.vt)>0.001) fall.raf=requestAnimationFrame(drawFall);
+}
+function kickFall(){ if(st.view==="fall"&&!fall.raf) fall.raf=requestAnimationFrame(drawFall); }
+function setView(v){
+  st.view=v; store.set("view",v); $("fall").hidden=v!=="fall"; $("fallLegend").hidden=v!=="fall";
+  $("viewSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));
+  if(v==="fall"){sizeFall(); const s=STEPS[st.idx]; fall.vt=s?s.t:0; kickFall();}
+}
+
 /* ---------------- Controles ---------------- */
 function refresh(keepPos){
   const t=STEPS[st.idx]?STEPS[st.idx].t:null;
@@ -721,6 +784,7 @@ function refresh(keepPos){
   restart(false);
 }
 function seg(id,key,cb){$(id).querySelectorAll("button").forEach(b=>{b.setAttribute("aria-pressed",String(b.dataset.v===st[key])); b.onclick=()=>{st[key]=b.dataset.v; $(id).querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); cb();};});}
+$("viewSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 seg("whoSeg","who",()=>{store.set("who",st.who); stop(); refresh(true);});
 seg("modeSeg","mode",()=>{stop(); if(st.mode==="wait") restart(false); else {feedback("Pulsa «Escuchar desde aquí»."); render();}});
 $("lhSrc").onchange=e=>{st.lh=e.target.value; store.set("lh",st.lh); stop(); refresh(true);};
@@ -751,8 +815,8 @@ document.addEventListener("keydown",e=>{
 
 /* ---------------- Arranque ---------------- */
 const saved=store.get("file",null); if(saved){try{FILE=expandFile(saved);}catch(e){FILE=null;}}
-fillSelects(); showFileInfo(); buildSecs(); buildKeyboard(); rebuild(); buildStrip(); markSecs(); restart(false);
-let rt; window.addEventListener("resize",()=>{clearTimeout(rt); rt=setTimeout(()=>{buildKeyboard(); render();},150);});
+fillSelects(); showFileInfo(); buildSecs(); buildKeyboard(); rebuild(); buildStrip(); markSecs(); setView(st.view); restart(false);
+let rt; window.addEventListener("resize",()=>{clearTimeout(rt); rt=setTimeout(()=>{buildKeyboard(); if(st.view==="fall") sizeFall(); render();},150);});
 })();
 </script>
 </body>
