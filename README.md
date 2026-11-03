@@ -6,4 +6,4 @@ Funciona en el navegador. Con Chrome o Edge y un piano digital conectado por USB
 
 La melodía, la letra y el arreglo de Ogerman de *Wave* no están incluidos; para tocarla hace falta la partitura.
 
-`hancock.html` sigue tecla a tecla, con el piano conectado por MIDI, la intro de la versión en directo de Herbie Hancock (São Paulo, 1993): compases 1–9, revisados a mano a partir de una transcripción automática. También carga cualquier archivo MIDI.
+`wave.html` recorre los 58 compases de *Wave* paso a paso con el piano conectado por MIDI: la app espera a que toques cada cambio de acorde con la mano izquierda (bajo o shells), con la derecha (acordes de cuatro notas) o con las dos. No incluye la melodía: si tienes la partitura en MusicXML o MIDI, puedes cargarla y la app te guía también en la melodía y en el piano del arreglo. El archivo se queda en tu navegador.
